@@ -47,5 +47,3 @@ agreed to at sign-up.
 The page receives everything it needs from the app: the Razorpay subscription id
 and the key id, both from `POST /subscription/buy`. It holds no JWT and makes no
 authenticated API call, so there is no `.env` to configure.
-# camroopro-marketing
-# camroopro-marketing

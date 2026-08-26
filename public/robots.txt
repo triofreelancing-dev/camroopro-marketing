@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+# Checkout is started by the app with a one-time subscription id; there is
+# nothing here for a crawler and nothing that should appear in search.
+Disallow: /pay

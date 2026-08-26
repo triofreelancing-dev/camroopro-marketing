@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+/*
+ * Camaroo palette. Gold and dark blue only — the app never uses purple, and
+ * this page is rendered inside a native screen on iOS, so it has to match.
+ */
+@theme {
+  --color-gold: #D89A2F;
+  --color-gold-dark: #B8802B;
+  --color-ink: #0F1823;
+  --color-ink-card: #1A2736;
+  --color-ink-line: #1E3A5F;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: #fff;
+  color: #0F1823;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #0F1823;
+    color: #F1F5F9;
+  }
+}
+
+/* The checkout page lives inside a native WebView: never let it rubber-band
+   or show a horizontal scrollbar, both of which read as a broken app screen. */
+body.in-app {
+  overscroll-behavior: none;
+  overflow-x: hidden;
+}
