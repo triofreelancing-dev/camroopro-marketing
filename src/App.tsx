@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import Landing from './pages/Landing';
 import Legal from './pages/Legal';
 import OpenInApp from './pages/OpenInApp';
+import Manage from './pages/Manage';
 import Pay from './pages/Pay';
 import PayResult from './pages/PayResult';
 import { TERMS_BLOCKS } from './legal/terms';
@@ -17,6 +18,8 @@ export default function App() {
 
         <Route path="/pay" element={<Pay />} />
         <Route path="/pay/result" element={<PayResult />} />
+        {/* Inert without an injected token, so it is safe to route publicly. */}
+        <Route path="/manage" element={<Manage />} />
 
         {/* Shared-link targets. `invite` is a static segment and must be
             declared before the dynamic `:id` so it is not swallowed by it —

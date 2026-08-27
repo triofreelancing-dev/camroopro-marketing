@@ -1,15 +1,63 @@
 @import "tailwindcss";
 
 /*
- * Camaroo palette. Gold and dark blue only — the app never uses purple, and
- * this page is rendered inside a native screen on iOS, so it has to match.
+ * Dark mode keys off `data-theme` on <html>, not `prefers-color-scheme`.
+ *
+ * The app's theme comes from `user.appTheme` on the server, so the phone's OS
+ * setting is the wrong source — someone running the app in dark on a light-mode
+ * phone was getting a white page inside a #0F1823 native shell. index.html seeds
+ * the attribute before first paint (from the injected handoff, falling back to
+ * the OS) and applyTheme() keeps it in step afterwards.
+ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
+ * Outfit, self-hosted.
+ *
+ * Not a Google Fonts <link>: this renders inside a WebView on mobile data during
+ * a payment, and an extra DNS + TLS round trip to a third party is both a delay
+ * and a dependency this flow does not need. TTF rather than woff2 only because
+ * no converter was available locally — the files are copied straight from the
+ * app's @expo-google-fonts/outfit package, so the two cannot drift.
+ */
+@font-face {
+  font-family: 'Outfit';
+  src: url('/fonts/Outfit-400Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Outfit';
+  src: url('/fonts/Outfit-500Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Outfit';
+  src: url('/fonts/Outfit-700Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+}
+
+/*
+ * Camaroo palette. Gold and dark blue only — the app never uses purple, and this
+ * page renders inside a native screen, so it has to match.
+ *
+ * These are the colours the app's screens ACTUALLY use, not the legacy tokens in
+ * its tailwind.config.js: `bg-white`/#F8FAFC light and #0F1823 dark, with the
+ * slate scale for text.
  */
 @theme {
+  --font-sans: 'Outfit', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
   --color-gold: #D89A2F;
   --color-gold-dark: #B8802B;
   --color-ink: #0F1823;
-  --color-ink-card: #1A2736;
-  --color-ink-line: #1E3A5F;
+  --color-ink-card: #1A2736;   /* hairline / subtle divider on dark */
+  --color-ink-line: #1E3A5F;   /* card + input border on dark */
+  --color-ink-inert: #243447;  /* disabled fill on dark */
+  --color-wash: #F8FAFC;       /* light page background */
+  --color-success: #10B981;
 }
 
 html {
@@ -18,21 +66,35 @@ html {
 
 body {
   margin: 0;
-  background: #fff;
-  color: #0F1823;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--color-wash);
+  color: #0f172a; /* slate-900 — the app's primary text */
+  font-family: var(--font-sans);
+  /* This is a payment surface, not a document. Selection handles and tap
+     flashes are exactly the details that give away an embedded browser. */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
 }
 
-@media (prefers-color-scheme: dark) {
-  body {
-    background: #0F1823;
-    color: #F1F5F9;
-  }
+[data-theme='dark'] body {
+  background: var(--color-ink);
+  color: #F1F5F9;
 }
 
-/* The checkout page lives inside a native WebView: never let it rubber-band
-   or show a horizontal scrollbar, both of which read as a broken app screen. */
+/* The checkout page lives inside a native WebView: never let it show a
+   horizontal scrollbar. Note the rubber-band is NOT fixable from here —
+   overscroll-behavior does not reach WKWebView's own scroll view, so the app
+   sets bounces={false}. */
 body.in-app {
   overscroll-behavior: none;
   overflow-x: hidden;
+}
+
+/* Razorpay renders its own inputs inside this document; blanket no-select would
+   break text entry there. */
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
 }

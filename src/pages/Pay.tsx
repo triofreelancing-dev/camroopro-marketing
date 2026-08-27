@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { isInApp, post } from '../lib/bridge';
 import { readHandoff, type Handoff } from '../lib/handoff';
 import { loadCheckout, openCheckout } from '../lib/razorpay';
+import { applyTheme } from '../lib/theme';
+import { Card, Muted, PrimaryButton, Shell, Spinner } from '../components/Shell';
 
 type State = 'loading' | 'ready' | 'opening' | 'unavailable' | 'error';
 
@@ -17,6 +19,7 @@ export default function Pay() {
 
   useEffect(() => {
     document.body.classList.add('in-app');
+    applyTheme(handoff?.theme);
 
     if (!handoff) {
       setState('unavailable');
@@ -68,62 +71,74 @@ export default function Pay() {
     return (
       <Shell>
         <h1 className="text-xl font-bold">Open this from the Camaroo app</h1>
-        <p className="mt-3 text-sm opacity-70">
+        <Muted className="mt-3 text-sm leading-relaxed">
           This checkout page is started by the app. Open Camaroo, go to Settings &rarr;
           Subscription, and choose a plan there.
-        </p>
+        </Muted>
       </Shell>
     );
   }
 
+  const isCourse = handoff?.mode === 'order';
+
   return (
     <Shell>
-      <p className="text-xs uppercase tracking-widest text-gold">Camaroo</p>
-      <h1 className="mt-2 text-2xl font-bold">{handoff?.planName} Plan</h1>
-      <p className="mt-1 text-3xl font-bold">
-        ₹{handoff?.price}
-        <span className="text-base font-normal opacity-60">/month</span>
-      </p>
+      <Card>
+        <p className="text-xs font-medium uppercase tracking-widest text-gold">Camaroo</p>
 
-      <button
-        type="button"
-        onClick={handlePay}
-        disabled={state !== 'ready'}
-        className="mt-8 w-full rounded-xl bg-gold py-4 text-base font-bold text-white transition
-                   enabled:active:bg-gold-dark disabled:opacity-45"
-      >
-        {state === 'loading' && 'Preparing…'}
-        {state === 'ready' && `Pay ₹${handoff?.price}`}
-        {state === 'opening' && 'Opening payment…'}
-        {state === 'error' && 'Unavailable'}
-      </button>
+        {/* The native header deliberately shows only "Secure payment", so this is
+            the single place the thing being bought is named. */}
+        <h1 className="mt-2 text-2xl font-bold leading-tight">
+          {handoff?.planName}
+          {isCourse ? '' : ' Plan'}
+        </h1>
 
-      {state === 'error' && <p className="mt-3 text-sm text-red-500">{message}</p>}
+        <p className="mt-3 text-3xl font-bold">
+          ₹{handoff?.price}
+          {isCourse ? null : (
+            <span className="text-base font-normal text-slate-500 dark:text-slate-400">/month</span>
+          )}
+        </p>
+
+        <div className="mt-5 border-t border-slate-100 pt-5 dark:border-ink-card">
+          <PrimaryButton onClick={handlePay} disabled={state !== 'ready'} busy={state === 'opening'}>
+            {state === 'loading' && 'Preparing…'}
+            {state === 'ready' && `Pay ₹${handoff?.price}`}
+            {state === 'opening' && 'Opening payment…'}
+            {state === 'error' && 'Unavailable'}
+          </PrimaryButton>
+
+          {state === 'loading' ? (
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <Spinner className="h-4 w-4" />
+              <Muted className="text-xs">Setting up secure payment…</Muted>
+            </div>
+          ) : null}
+
+          {state === 'error' && (
+            <p className="mt-3 text-sm text-red-500 dark:text-red-400">{message}</p>
+          )}
+        </div>
+      </Card>
 
       {/* Same wording as the app's plans screen, so the commitment a user sees
           does not change depending on which platform they are on. */}
-      <p className="mt-6 text-xs leading-relaxed opacity-60">
-        Renews automatically each month. Cancel anytime from the app.
-      </p>
-      <p className="mt-4 text-xs leading-relaxed opacity-60">
+      {isCourse ? null : (
+        <Muted className="mt-6 text-xs leading-relaxed">
+          Renews automatically each month. Cancel anytime from Settings &rarr; Subscription.
+        </Muted>
+      )}
+      <Muted className="mt-4 text-xs leading-relaxed">
         By paying you agree to our{' '}
-        <a href="/terms" onClick={openLegal('/terms')} className="font-semibold text-gold">
+        <a href="/terms" onClick={openLegal('/terms')} className="font-bold text-gold">
           Terms of Use
         </a>{' '}
         and{' '}
-        <a href="/privacy" onClick={openLegal('/privacy')} className="font-semibold text-gold">
+        <a href="/privacy" onClick={openLegal('/privacy')} className="font-bold text-gold">
           Privacy Policy
         </a>
         .
-      </p>
+      </Muted>
     </Shell>
-  );
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-10">
-      {children}
-    </main>
   );
 }

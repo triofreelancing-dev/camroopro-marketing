@@ -9,6 +9,29 @@
       content="Camaroo is where photographers, videographers and cinematographers build a portfolio, find work, hire each other, and trade camera gear."
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script>
+      /*
+       * Sets the palette before first paint.
+       *
+       * The app injects __CAMAROO_HANDOFF__ before this document loads, so its
+       * theme is already readable here — which matters because the app's theme
+       * comes from the user's account, not the phone. Doing it in React instead
+       * would paint a light page first and then snap to dark.
+       *
+       * Only reads; readHandoff() still consumes and deletes the global later.
+       */
+      (function () {
+        try {
+          var handoff = window.__CAMAROO_HANDOFF__;
+          var theme =
+            (handoff && handoff.theme) ||
+            (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          document.documentElement.dataset.theme = theme;
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

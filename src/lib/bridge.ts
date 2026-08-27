@@ -18,7 +18,11 @@ export type WebToAppMessage =
   | { v: 1; type: 'PAY_DISMISSED'; subscriptionId?: string }
   | { v: 1; type: 'PAY_FATAL'; description: string }
   | { v: 1; type: 'OPEN_EXTERNAL'; url: string }
-  | { v: 1; type: 'LOG'; level: 'info' | 'warn' | 'error'; msg: string };
+  | { v: 1; type: 'LOG'; level: 'info' | 'warn' | 'error'; msg: string }
+  // ── manage mode ──
+  | { v: 1; type: 'SUB_CANCEL_REQUESTED'; userSubscriptionId: string }
+  | { v: 1; type: 'SUB_CANCEL_FAILED'; description: string }
+  | { v: 1; type: 'MANAGE_CLOSED' };
 
 declare global {
   interface Window {

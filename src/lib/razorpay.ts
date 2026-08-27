@@ -2,8 +2,16 @@ import { post } from './bridge';
 import type { Handoff } from './handoff';
 
 const CHECKOUT_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
-export const CALLBACK_URL = 'https://camroopro.com/api/rzp-callback';
-export const CANCEL_URL = 'https://camroopro.com/pay/result?status=cancelled';
+
+/**
+ * Built from the origin actually being served, not a hardcoded camroopro.com.
+ *
+ * Razorpay redirects the WebView to whatever these say, so a hardcoded
+ * production URL would send a dev-tunnel session to a domain that does not exist
+ * yet and lose the result.
+ */
+const callbackUrl = () => `${window.location.origin}/api/rzp-callback`;
+const cancelUrl = () => `${window.location.origin}/pay/result?status=cancelled`;
 
 let loading: Promise<void> | null = null;
 
@@ -40,11 +48,30 @@ export function openCheckout(handoff: Handoff) {
     sequence.push('block.cards');
   }
 
-  const rzp = new window.Razorpay({
+  /**
+   * The id echoed back to the app on every message.
+   *
+   * The contract field is named `subscriptionId` for historical reasons; for a
+   * course it carries the order id instead. Either way it is advisory — the app
+   * confirms entitlement against the server and never trusts this.
+   */
+  const referenceId = handoff.razorpaySubscriptionId ?? handoff.orderId ?? '';
+
+  // Razorpay identifies a recurring plan and a one-off purchase differently, and
+  // rejects options carrying both.
+  const target =
+    (handoff.mode ?? 'subscription') === 'order'
+      ? { order_id: handoff.orderId, amount: handoff.amount, currency: handoff.currency ?? 'INR' }
+      : { subscription_id: handoff.razorpaySubscriptionId };
+
+  const base = {
     key: handoff.keyId,
-    subscription_id: handoff.razorpaySubscriptionId,
+    ...target,
     name: 'Camaroo',
-    description: `${handoff.planName} Plan · Monthly`,
+    description:
+      (handoff.mode ?? 'subscription') === 'order'
+        ? handoff.planName
+        : `${handoff.planName} Plan · Monthly`,
     theme: { color: '#D89A2F' },
     /**
      * MIRROR OF: camaroo/hooks/useSubscription.ts (`config.display`).
@@ -55,19 +82,50 @@ export function openCheckout(handoff: Handoff) {
     config: {
       display: { blocks, sequence, preferences: { show_default_blocks: false } },
     },
-    /**
-     * redirect:true, not a JS handler.
-     *
-     * On completion Razorpay does a full-page POST to `callback_url` instead of
-     * invoking a callback, so the result reaches the app as a NAVIGATION. That
-     * survives the one failure the JS handler cannot: iOS reclaiming the
-     * WebView's content process while the user is away in a UPI app, which
-     * destroys the JS context and with it any pending callback.
-     */
-    redirect: true,
-    callback_url: CALLBACK_URL,
-    cancel_url: CANCEL_URL,
-  });
+  };
+
+  /**
+   * `redirect` is what production uses.
+   *
+   * On completion Razorpay does a full-page POST to `callback_url` instead of
+   * invoking a callback, so the result reaches the app as a NAVIGATION. That
+   * survives the one failure the JS handler cannot: the OS reclaiming the
+   * WebView's content process while the user is away in a UPI app, which
+   * destroys the JS context and with it any pending callback.
+   *
+   * `handler` exists only for hosts Razorpay's servers cannot POST back to — a
+   * plain-http LAN address during local testing. Lower fidelity by exactly the
+   * failure above, so prefer a tunnel and stay on `redirect` where possible.
+   */
+  const options =
+    (handoff.resultMode ?? 'redirect') === 'redirect'
+      ? {
+          ...base,
+          redirect: true,
+          callback_url: callbackUrl(),
+          cancel_url: cancelUrl(),
+        }
+      : {
+          ...base,
+          redirect: false,
+          handler: (response: { razorpay_payment_id?: string }) =>
+            post({
+              v: 1,
+              type: 'PAY_SUCCESS',
+              subscriptionId: referenceId,
+              paymentId: response?.razorpay_payment_id,
+            }),
+          modal: {
+            ondismiss: () =>
+              post({
+                v: 1,
+                type: 'PAY_DISMISSED',
+                subscriptionId: referenceId,
+              }),
+          },
+        };
+
+  const rzp = new window.Razorpay(options);
 
   rzp.on('payment.failed', (response: unknown) => {
     const err = (response as { error?: { code?: string; description?: string } })?.error;
@@ -80,5 +138,5 @@ export function openCheckout(handoff: Handoff) {
   });
 
   rzp.open();
-  post({ v: 1, type: 'PAY_OPENED', subscriptionId: handoff.razorpaySubscriptionId });
+  post({ v: 1, type: 'PAY_OPENED', subscriptionId: referenceId });
 }

@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { post } from '../lib/bridge';
+import { restoreNonce } from '../lib/handoff';
+import { Muted, Shell, Spinner } from '../components/Shell';
 
 /**
  * Terminal state after Razorpay's redirect.
@@ -16,6 +18,16 @@ export default function PayResult() {
   const paymentId = params.get('payment_id') ?? undefined;
 
   useEffect(() => {
+    // This is a separate document from /pay, so it needs the in-app treatment of
+    // its own — it was previously the one page that kept browser scroll
+    // behaviour mid-payment.
+    document.body.classList.add('in-app');
+
+    // MUST come first. This is a fresh document after Razorpay's redirect, so
+    // the nonce set on /pay is gone; posting without it makes the app reject
+    // every message here as a forgery and the user sits on this page forever.
+    restoreNonce();
+
     if (status === 'success') {
       post({ v: 1, type: 'PAY_SUCCESS', subscriptionId, paymentId });
     } else if (status === 'cancelled') {
@@ -47,10 +59,48 @@ export default function PayResult() {
     },
   }[status === 'success' || status === 'cancelled' ? status : 'unknown'];
 
+  /*
+   * Composed to match the native PaymentConfirming screen this hands off to —
+   * icon first, Outfit Bold title, muted body — so crossing from web to native
+   * mid-payment does not look like a jump between two different apps.
+   */
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 text-center">
-      <h1 className="text-2xl font-bold">{copy.title}</h1>
-      <p className="mt-3 text-sm opacity-70">{copy.body}</p>
-    </main>
+    <Shell>
+      <div className="flex flex-col items-center text-center">
+        {status === 'success' ? (
+          <CheckIcon />
+        ) : status === 'cancelled' ? (
+          <Spinner className="h-10 w-10" />
+        ) : (
+          <AlertIcon />
+        )}
+
+        <h1 className="mt-6 text-xl font-bold">{copy.title}</h1>
+        <Muted className="mt-3 text-sm leading-relaxed">{copy.body}</Muted>
+      </div>
+    </Shell>
+  );
+}
+
+/* Inline SVGs rather than an icon package: two glyphs do not justify a
+   dependency inside a payment page, and these match the app's lucide sizing. */
+function CheckIcon() {
+  return (
+    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="1.75"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  );
+}
+
+function AlertIcon() {
+  return (
+    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#D89A2F" strokeWidth="1.75"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 8v5" />
+      <path d="M12 16h.01" />
+    </svg>
   );
 }
