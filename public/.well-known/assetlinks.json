@@ -4,7 +4,9 @@
     "target": {
       "namespace": "android_app",
       "package_name": "com.pankajcamaroo.camaroo",
-      "sha256_cert_fingerprints": ["REPLACE_WITH_EAS_SHA256_FINGERPRINT"]
+      "sha256_cert_fingerprints": [
+        "CF:5E:7C:24:2A:50:F5:E4:40:81:95:21:B0:03:A5:07:7B:73:7E:DD:61:8B:C5:8D:F9:3B:0D:AC:7D:2F:6A:FB"
+      ]
     }
   }
 ]

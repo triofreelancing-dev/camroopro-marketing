@@ -2,10 +2,11 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["REPLACE_WITH_APPLE_TEAM_ID.com.pankajcamaroo.camaroo"],
+        "appIDs": ["R9GUQ4394N.com.pankajcamaroo.camaroo"],
         "components": [
           { "/": "/pay*", "exclude": true, "comment": "Checkout must stay in the WebView that opened it, never bounce out to the app" },
           { "/": "/pay/*", "exclude": true },
+          { "/": "/manage*", "exclude": true, "comment": "Same as checkout: opened by the app inside its own WebView" },
           { "/": "/terms", "exclude": true, "comment": "Legal pages must be readable in a browser before an account exists" },
           { "/": "/privacy", "exclude": true },
           { "/": "/*" }
