@@ -53,6 +53,9 @@ export default defineConfig({
      * "Blocked request. This host is not allowed." — which is what a dev tunnel
      * would show instead of the site.
      */
-    allowedHosts: ['.devtunnels.ms', '.ngrok-free.app', '.ngrok.io'],
+    /* A leading dot matches the domain AND its subdomains, so this covers
+       camroopro.com and www.camroopro.com. Only consulted by `vite dev` — a
+       production build served statically never sees this list. */
+    allowedHosts: ['.camroopro.com', '.devtunnels.ms', '.ngrok-free.app', '.ngrok.io'],
   },
 });
