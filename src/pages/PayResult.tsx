@@ -1,7 +1,10 @@
 import { useEffect } from 'react';
-import { post } from '../lib/bridge';
+import { isInApp, post } from '../lib/bridge';
 import { restoreNonce } from '../lib/handoff';
-import { Muted, Shell, Spinner } from '../components/Shell';
+import { Muted, PrimaryButton, Shell, Spinner } from '../components/Shell';
+
+/** Must match `scheme` in the app's app.json. */
+const APP_SCHEME = 'camaroo://';
 
 /**
  * Terminal state after Razorpay's redirect.
@@ -17,6 +20,13 @@ export default function PayResult() {
   const subscriptionId = params.get('subscription_id') ?? '';
   const paymentId = params.get('payment_id') ?? undefined;
 
+  const returnToApp = () => {
+    const params = new URLSearchParams({ status });
+    if (subscriptionId) params.set('subscription_id', subscriptionId);
+    if (paymentId) params.set('payment_id', paymentId);
+    window.location.href = `${APP_SCHEME}pay/return?${params.toString()}`;
+  };
+
   useEffect(() => {
     // This is a separate document from /pay, so it needs the in-app treatment of
     // its own — it was previously the one page that kept browser scroll
@@ -27,6 +37,20 @@ export default function PayResult() {
     // the nonce set on /pay is gone; posting without it makes the app reject
     // every message here as a forgery and the user sits on this page forever.
     restoreNonce();
+
+    /**
+     * Browser mode: this document is in Safari, not a WebView, so there is no
+     * postMessage channel — the app is reached by its custom scheme instead.
+     *
+     * `isInApp()` distinguishes the two: react-native-webview injects
+     * ReactNativeWebView, real Safari has nothing. Attempted automatically, but
+     * Safari can refuse a scheme navigation without a user gesture, which is why
+     * the button below is rendered rather than being a fallback nobody sees.
+     */
+    if (!isInApp()) {
+      returnToApp();
+      return;
+    }
 
     if (status === 'success') {
       post({ v: 1, type: 'PAY_SUCCESS', subscriptionId, paymentId });
@@ -77,6 +101,16 @@ export default function PayResult() {
 
         <h1 className="mt-6 text-xl font-bold">{copy.title}</h1>
         <Muted className="mt-3 text-sm leading-relaxed">{copy.body}</Muted>
+
+        {/* Browser mode only. The automatic scheme navigation above can be
+            refused without a user gesture, and a silent failure would strand
+            someone on a web page having just paid — so this is always here,
+            not a fallback that only appears once something has gone wrong. */}
+        {!isInApp() ? (
+          <div className="mt-8 w-full">
+            <PrimaryButton onClick={returnToApp}>Return to Camaroo</PrimaryButton>
+          </div>
+        ) : null}
       </div>
     </Shell>
   );
