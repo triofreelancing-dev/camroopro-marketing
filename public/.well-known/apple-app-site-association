@@ -4,7 +4,8 @@
       {
         "appIDs": ["R9GUQ4394N.com.pankajcamaroo.camaroo"],
         "components": [
-          { "/": "/pay*", "exclude": true, "comment": "Checkout must stay in the WebView that opened it, never bounce out to the app" },
+          { "/": "/api/*", "exclude": true, "comment": "Razorpay POSTs its result to /api/rzp-callback and follows the 303 on to the result page. As a universal link iOS opens the app there instead, so the callback never runs and the payment result is lost — the app lands on an unmatched /api/rzp-callback route." },
+          { "/": "/pay*", "exclude": true, "comment": "Checkout must stay in the browser or WebView that opened it, never bounce out to the app" },
           { "/": "/pay/*", "exclude": true },
           { "/": "/manage*", "exclude": true, "comment": "Same as checkout: opened by the app inside its own WebView" },
           { "/": "/terms", "exclude": true, "comment": "Legal pages must be readable in a browser before an account exists" },
