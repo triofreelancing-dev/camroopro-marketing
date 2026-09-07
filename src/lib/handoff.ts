@@ -169,15 +169,48 @@ export function restoreNonce(): void {
   }
 }
 
-/** Browser-testing fallback only. The app never uses the query string. */
+/**
+ * The handoff channel for browser checkout.
+ *
+ * Not a testing fallback: when checkout runs in real Safari there is no WebView
+ * to inject into, so the query string is the ONLY way the app can reach this
+ * page — see `useBrowserSubscriptionPurchase` and `useBrowserCoursePurchase`.
+ * Nothing carried here is a credential; `manage` is the one mode that needs a
+ * token and it never uses this path, which is what keeps the JWT out of URLs.
+ */
 function fromQueryString(): Partial<Handoff> | null {
   const q = new URLSearchParams(window.location.search);
   const sub = q.get('sub');
-  if (!sub) return null;
-  return {
-    razorpaySubscriptionId: sub,
+  const order = q.get('order');
+  if (!sub && !order) return null;
+
+  const common = {
     keyId: q.get('key') ?? '',
-    planName: q.get('plan') ?? 'Premium',
     price: Number(q.get('price') ?? 0),
+  };
+
+  /**
+   * `mode` must be explicit rather than inferred later: Razorpay rejects
+   * options carrying both an order and a subscription, so `openCheckout` picks
+   * one shape from this field alone.
+   */
+  if (order) {
+    return {
+      ...common,
+      mode: 'order',
+      orderId: order,
+      // Paise, as Razorpay expects. Validated as a positive number by the
+      // caller, which reports a fatal handoff rather than opening checkout.
+      amount: Number(q.get('amount') ?? 0),
+      currency: q.get('currency') ?? 'INR',
+      planName: q.get('plan') ?? 'Course',
+    };
+  }
+
+  return {
+    ...common,
+    mode: 'subscription',
+    razorpaySubscriptionId: sub as string,
+    planName: q.get('plan') ?? 'Premium',
   };
 }
