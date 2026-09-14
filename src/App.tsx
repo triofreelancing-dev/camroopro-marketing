@@ -7,6 +7,7 @@ import Pay from './pages/Pay';
 import PayResult from './pages/PayResult';
 import { TERMS_BLOCKS } from './legal/terms';
 import { PRIVACY_BLOCKS } from './legal/privacy';
+import { DELETE_ACCOUNT_BLOCKS } from './legal/delete-account';
 
 export default function App() {
   return (
@@ -15,6 +16,9 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/terms" element={<Legal blocks={TERMS_BLOCKS} />} />
         <Route path="/privacy" element={<Legal blocks={PRIVACY_BLOCKS} />} />
+        {/* Given to Play Console as the account deletion URL, so it must stay
+            reachable at this exact path for as long as the app is listed. */}
+        <Route path="/delete-account" element={<Legal blocks={DELETE_ACCOUNT_BLOCKS} />} />
 
         <Route path="/pay" element={<Pay />} />
         <Route path="/pay/result" element={<PayResult />} />
