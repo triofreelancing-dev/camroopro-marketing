@@ -31,53 +31,6 @@ jobs:
         uses: actions/checkout@v4
 
       # ==========================================================
-      # GitHub Context
-      # ==========================================================
-      - name: Debug GitHub Context
-        run: |
-          echo "=============================="
-          echo "GitHub Context"
-          echo "=============================="
-          echo "Repository     : ${{ github.repository }}"
-          echo "Repository ID  : ${{ github.repository_id }}"
-          echo "Owner          : ${{ github.repository_owner }}"
-          echo "Owner ID       : ${{ github.repository_owner_id }}"
-          echo "Ref            : ${{ github.ref }}"
-          echo "Ref Name       : ${{ github.ref_name }}"
-          echo "Event          : ${{ github.event_name }}"
-          echo "Workflow       : ${{ github.workflow }}"
-          echo "Workflow Ref   : ${{ github.workflow_ref }}"
-          echo "Run ID         : ${{ github.run_id }}"
-          echo "=============================="
-
-      # ==========================================================
-      # Validate AWS Role ARN
-      # ==========================================================
-      - name: Validate AWS Role ARN
-        env:
-          ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-        run: |
-          set -e
-
-          if [ -z "${ROLE_ARN}" ]; then
-            echo "ERROR: AWS_ROLE_ARN secret is empty or unavailable."
-            exit 1
-          fi
-
-          ROLE_ACCOUNT=$(echo "${ROLE_ARN}" | cut -d: -f5)
-          ROLE_NAME=$(echo "${ROLE_ARN}" | sed 's#^.*/##')
-
-          echo "AWS Account : ${ROLE_ACCOUNT}"
-          echo "AWS Role    : ${ROLE_NAME}"
-
-          if [ "${ROLE_ACCOUNT}" != "201611060191" ]; then
-            echo "ERROR: AWS_ROLE_ARN points to the wrong AWS account."
-            echo "Expected : 201611060191"
-            echo "Found    : ${ROLE_ACCOUNT}"
-            exit 1
-          fi
-
-      # ==========================================================
       # Get and Decode GitHub OIDC Token
       #
       # IMPORTANT:
