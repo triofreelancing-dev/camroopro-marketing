@@ -28,6 +28,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Debug Repository and Organization IDs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Repository: ${{ github.repository }}"
+          echo "Repository ID: $(gh api repos/${{ github.repository }} --jq '.id')"
+          echo "Organization: $(gh api repos/${{ github.repository }} --jq '.owner.login')"
+          echo "Organization ID: $(gh api orgs/$(gh api repos/${{ github.repository }} --jq '.owner.login') --jq '.id')"
+
       # ---------------- AWS Auth ----------------
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
