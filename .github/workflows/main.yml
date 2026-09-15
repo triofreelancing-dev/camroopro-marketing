@@ -28,46 +28,47 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ============================================================
-      # Debug GitHub Repository / Organization
-      # ============================================================
-      - name: Debug GitHub Repository and Organization
-        env:
-          GH_TOKEN: ${{ github.token }}
+      # ---------------- GitHub Debug ----------------
+      - name: Debug GitHub Context
         run: |
-          set -euo pipefail
+          echo "=============================="
+          echo "GitHub Context"
+          echo "=============================="
+          echo "Repository     : ${{ github.repository }}"
+          echo "Repository ID  : ${{ github.repository_id }}"
+          echo "Owner          : ${{ github.repository_owner }}"
+          echo "Ref            : ${{ github.ref }}"
+          echo "Ref Name       : ${{ github.ref_name }}"
+          echo "Event          : ${{ github.event_name }}"
+          echo "Workflow       : ${{ github.workflow }}"
+          echo "Workflow Ref   : ${{ github.workflow_ref }}"
+          echo "Run ID         : ${{ github.run_id }}"
+          echo "=============================="
 
-          echo "=========================================="
-          echo "GitHub Actions Debug Information"
-          echo "=========================================="
+      # ---------------- Validate AWS Role ----------------
+      - name: Validate AWS Role ARN
+        env:
+          ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+        run: |
+          set -e
 
-          echo "Repository:"
-          echo "  github.repository       = ${{ github.repository }}"
-          echo "  github.repository_owner = ${{ github.repository_owner }}"
-          echo "  github.event.repository.id = ${{ github.event.repository.id }}"
-
-          echo ""
-          echo "Organization:"
-          ORG="${{ github.repository_owner }}"
-
-          if [[ "${ORG}" != "${{ github.event.repository.owner.login }}" ]]; then
-            echo "  Owner is not the expected organization."
+          if [ -z "${ROLE_ARN}" ]; then
+            echo "ERROR: AWS_ROLE_ARN secret is empty or unavailable."
+            exit 1
           fi
 
-          ORG_ID=$(gh api \
-            "/orgs/${ORG}" \
-            --jq '.id')
+          ROLE_ACCOUNT=$(echo "${ROLE_ARN}" | cut -d: -f5)
+          ROLE_NAME=$(echo "${ROLE_ARN}" | sed 's#^.*/##')
 
-          echo "  org.name = ${ORG}"
-          echo "  org.id   = ${ORG_ID}"
+          echo "AWS Account : ${ROLE_ACCOUNT}"
+          echo "AWS Role    : ${ROLE_NAME}"
 
-          echo ""
-          echo "Repository API details:"
-          gh api \
-            "/repos/${{ github.repository }}" \
-            --jq '"repo.name=\(.name)\nrepo.full_name=\(.full_name)\nrepo.id=\(.id)\nrepo.owner.login=\(.owner.login)\nrepo.owner.id=\(.owner.id)"'
-
-          echo "=========================================="
+          if [ "${ROLE_ACCOUNT}" != "201611060191" ]; then
+            echo "ERROR: AWS_ROLE_ARN points to a different AWS account."
+            echo "Expected : 201611060191"
+            echo "Found    : ${ROLE_ACCOUNT}"
+            exit 1
+          fi
 
       # ---------------- AWS Auth ----------------
       - name: Configure AWS Credentials
@@ -75,6 +76,26 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-${{ github.run_id }}
+          retry-max-attempts: 1
+          mask-aws-account-id: false
+
+      # ---------------- Verify AWS Identity ----------------
+      - name: Verify AWS Identity
+        run: |
+          set -e
+
+          echo "=============================="
+          echo "AWS Identity"
+          echo "=============================="
+
+          aws sts get-caller-identity
+
+          echo "=============================="
+          echo "AWS Region"
+          echo "=============================="
+
+          aws configure get region || true
 
       # ---------------- ECR Login ----------------
       - name: Login to Amazon ECR
@@ -115,7 +136,11 @@ jobs:
         run: |
           set -eux
 
-          echo "Deploying:"
+          echo "=============================="
+          echo "Deploying Marketing Service"
+          echo "=============================="
+
+          echo "Image:"
           echo "${IMAGE_URI}"
 
           COMMAND_ID=$(aws ssm send-command \
@@ -126,6 +151,9 @@ jobs:
             --parameters "commands=[
               \"set -eux\",
               \"cd /home/ubuntu\",
+              \"echo ===== AWS IDENTITY =====\",
+              \"aws sts get-caller-identity\",
+              \"echo ===== ECR LOGIN =====\",
               \"aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}\",
               \"echo ===== CURRENT IMAGE =====\",
               \"grep -A5 '^  marketing:' docker-compose.yml || true\",
@@ -161,6 +189,7 @@ jobs:
             ATTEMPT=$((ATTEMPT + 1))
 
             STATUS=$(aws ssm list-command-invocations \
+              --region "${AWS_REGION}" \
               --command-id "${COMMAND_ID}" \
               --details \
               --query "CommandInvocations[0].Status" \
@@ -175,6 +204,7 @@ jobs:
               echo "=========================================="
 
               aws ssm list-command-invocations \
+                --region "${AWS_REGION}" \
                 --command-id "${COMMAND_ID}" \
                 --details
 
@@ -191,6 +221,7 @@ jobs:
               echo "=========================================="
 
               aws ssm list-command-invocations \
+                --region "${AWS_REGION}" \
                 --command-id "${COMMAND_ID}" \
                 --details
 
