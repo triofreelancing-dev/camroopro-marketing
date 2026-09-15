@@ -24,11 +24,15 @@ jobs:
 
     steps:
 
-      # ---------------- Checkout ----------------
+      # ==========================================================
+      # Checkout
+      # ==========================================================
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ---------------- GitHub Debug ----------------
+      # ==========================================================
+      # GitHub Context
+      # ==========================================================
       - name: Debug GitHub Context
         run: |
           echo "=============================="
@@ -37,6 +41,7 @@ jobs:
           echo "Repository     : ${{ github.repository }}"
           echo "Repository ID  : ${{ github.repository_id }}"
           echo "Owner          : ${{ github.repository_owner }}"
+          echo "Owner ID       : ${{ github.repository_owner_id }}"
           echo "Ref            : ${{ github.ref }}"
           echo "Ref Name       : ${{ github.ref_name }}"
           echo "Event          : ${{ github.event_name }}"
@@ -45,7 +50,9 @@ jobs:
           echo "Run ID         : ${{ github.run_id }}"
           echo "=============================="
 
-      # ---------------- Validate AWS Role ----------------
+      # ==========================================================
+      # Validate AWS Role ARN
+      # ==========================================================
       - name: Validate AWS Role ARN
         env:
           ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
@@ -64,23 +71,90 @@ jobs:
           echo "AWS Role    : ${ROLE_NAME}"
 
           if [ "${ROLE_ACCOUNT}" != "201611060191" ]; then
-            echo "ERROR: AWS_ROLE_ARN points to a different AWS account."
+            echo "ERROR: AWS_ROLE_ARN points to the wrong AWS account."
             echo "Expected : 201611060191"
             echo "Found    : ${ROLE_ACCOUNT}"
             exit 1
           fi
 
-      # ---------------- AWS Auth ----------------
+      # ==========================================================
+      # Get and Decode GitHub OIDC Token
+      #
+      # IMPORTANT:
+      # We only print claims. We NEVER print the actual token.
+      # ==========================================================
+      - name: Debug GitHub OIDC Token Claims
+        run: |
+          set -e
+
+          echo "=============================="
+          echo "Requesting GitHub OIDC token"
+          echo "=============================="
+
+          RESPONSE=$(curl -sS \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")
+
+          TOKEN=$(echo "${RESPONSE}" | jq -r '.value')
+
+          if [ -z "${TOKEN}" ] || [ "${TOKEN}" = "null" ]; then
+            echo "ERROR: Could not obtain GitHub OIDC token."
+            echo "${RESPONSE}"
+            exit 1
+          fi
+
+          echo "OIDC token received successfully."
+
+          PAYLOAD=$(echo "${TOKEN}" | cut -d '.' -f2)
+
+          # Add base64 padding
+          case $((${#PAYLOAD} % 4)) in
+            2)
+              PAYLOAD="${PAYLOAD}=="
+              ;;
+            3)
+              PAYLOAD="${PAYLOAD}="
+              ;;
+          esac
+
+          echo "=============================="
+          echo "OIDC CLAIMS"
+          echo "=============================="
+
+          echo "${PAYLOAD}" | base64 -d 2>/dev/null | jq '{
+            iss,
+            aud,
+            sub,
+            repository,
+            repository_id,
+            repository_owner,
+            repository_owner_id,
+            ref,
+            sha
+          }'
+
+          echo "=============================="
+          echo "Expected AWS OIDC subject"
+          echo "=============================="
+
+          echo "repo:${GITHUB_REPOSITORY}:ref:refs/heads/main"
+
+      # ==========================================================
+      # AWS Authentication via GitHub OIDC
+      # ==========================================================
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: GitHubActions-${{ github.run_id }}
+          audience: sts.amazonaws.com
           retry-max-attempts: 1
           mask-aws-account-id: false
 
-      # ---------------- Verify AWS Identity ----------------
+      # ==========================================================
+      # Verify AWS Identity
+      # ==========================================================
       - name: Verify AWS Identity
         run: |
           set -e
@@ -91,18 +165,16 @@ jobs:
 
           aws sts get-caller-identity
 
-          echo "=============================="
-          echo "AWS Region"
-          echo "=============================="
-
-          aws configure get region || true
-
-      # ---------------- ECR Login ----------------
+      # ==========================================================
+      # ECR Login
+      # ==========================================================
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # ---------------- Build & Push ----------------
+      # ==========================================================
+      # Build & Push Docker Image
+      # ==========================================================
       - name: Build, Tag and Push Image
         id: build
         env:
@@ -115,9 +187,9 @@ jobs:
           IMAGE_TAG="${SERVICE_NAME}-production-${SHORT_SHA}"
           IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
 
-          echo "Commit SHA: ${GITHUB_SHA}"
-          echo "Short SHA: ${SHORT_SHA}"
-          echo "Image URI: ${IMAGE_URI}"
+          echo "Commit SHA : ${GITHUB_SHA}"
+          echo "Short SHA  : ${SHORT_SHA}"
+          echo "Image URI  : ${IMAGE_URI}"
 
           docker build \
             --build-arg APP_NAME="${SERVICE_NAME}" \
@@ -129,7 +201,9 @@ jobs:
           echo "IMAGE_URI=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
           echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
 
-      # ---------------- Deploy via SSM ----------------
+      # ==========================================================
+      # Deploy to EC2 using SSM
+      # ==========================================================
       - name: Deploy to EC2 via SSM
         env:
           IMAGE_URI: ${{ steps.build.outputs.IMAGE_URI }}
@@ -140,7 +214,7 @@ jobs:
           echo "Deploying Marketing Service"
           echo "=============================="
 
-          echo "Image:"
+          echo "Image URI:"
           echo "${IMAGE_URI}"
 
           COMMAND_ID=$(aws ssm send-command \
@@ -151,7 +225,7 @@ jobs:
             --parameters "commands=[
               \"set -eux\",
               \"cd /home/ubuntu\",
-              \"echo ===== AWS IDENTITY =====\",
+              \"echo ===== EC2 AWS IDENTITY =====\",
               \"aws sts get-caller-identity\",
               \"echo ===== ECR LOGIN =====\",
               \"aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}\",
@@ -175,7 +249,9 @@ jobs:
 
           echo "SSM Command ID: ${COMMAND_ID}"
 
-      # ---------------- Wait for SSM Completion ----------------
+      # ==========================================================
+      # Wait for SSM Completion
+      # ==========================================================
       - name: Wait for Deployment Result
         env:
           COMMAND_ID: ${{ env.COMMAND_ID }}
