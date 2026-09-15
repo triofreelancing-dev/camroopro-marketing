@@ -28,14 +28,46 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Debug Repository and Organization IDs
+      # ============================================================
+      # Debug GitHub Repository / Organization
+      # ============================================================
+      - name: Debug GitHub Repository and Organization
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Repository: ${{ github.repository }}"
-          echo "Repository ID: $(gh api repos/${{ github.repository }} --jq '.id')"
-          echo "Organization: $(gh api repos/${{ github.repository }} --jq '.owner.login')"
-          echo "Organization ID: $(gh api orgs/$(gh api repos/${{ github.repository }} --jq '.owner.login') --jq '.id')"
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "GitHub Actions Debug Information"
+          echo "=========================================="
+
+          echo "Repository:"
+          echo "  github.repository       = ${{ github.repository }}"
+          echo "  github.repository_owner = ${{ github.repository_owner }}"
+          echo "  github.event.repository.id = ${{ github.event.repository.id }}"
+
+          echo ""
+          echo "Organization:"
+          ORG="${{ github.repository_owner }}"
+
+          if [[ "${ORG}" != "${{ github.event.repository.owner.login }}" ]]; then
+            echo "  Owner is not the expected organization."
+          fi
+
+          ORG_ID=$(gh api \
+            "/orgs/${ORG}" \
+            --jq '.id')
+
+          echo "  org.name = ${ORG}"
+          echo "  org.id   = ${ORG_ID}"
+
+          echo ""
+          echo "Repository API details:"
+          gh api \
+            "/repos/${{ github.repository }}" \
+            --jq '"repo.name=\(.name)\nrepo.full_name=\(.full_name)\nrepo.id=\(.id)\nrepo.owner.login=\(.owner.login)\nrepo.owner.id=\(.owner.id)"'
+
+          echo "=========================================="
 
       # ---------------- AWS Auth ----------------
       - name: Configure AWS Credentials
