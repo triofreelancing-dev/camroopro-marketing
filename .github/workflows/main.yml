@@ -1,0 +1,163 @@
+name: Build & Deploy marketing service
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY: camroopro-marketing
+  SERVICE_NAME: marketing
+  EC2_NAME: Prod-Camroopro-server
+  ECR_REGISTRY: 201611060191.dkr.ecr.ap-south-1.amazonaws.com
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+
+      # ---------------- Checkout ----------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---------------- AWS Auth ----------------
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ---------------- ECR Login ----------------
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ---------------- Build & Push ----------------
+      - name: Build, Tag and Push Image
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          set -eux
+
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+
+          IMAGE_TAG="${SERVICE_NAME}-production-${SHORT_SHA}"
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+
+          echo "Commit SHA: ${GITHUB_SHA}"
+          echo "Short SHA: ${SHORT_SHA}"
+          echo "Image URI: ${IMAGE_URI}"
+
+          docker build \
+            --build-arg APP_NAME="${SERVICE_NAME}" \
+            -t "${IMAGE_URI}" \
+            .
+
+          docker push "${IMAGE_URI}"
+
+          echo "IMAGE_URI=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+
+      # ---------------- Deploy via SSM ----------------
+      - name: Deploy to EC2 via SSM
+        env:
+          IMAGE_URI: ${{ steps.build.outputs.IMAGE_URI }}
+        run: |
+          set -eux
+
+          echo "Deploying:"
+          echo "${IMAGE_URI}"
+
+          COMMAND_ID=$(aws ssm send-command \
+            --region "${AWS_REGION}" \
+            --document-name "AWS-RunShellScript" \
+            --targets "Key=tag:Name,Values=${EC2_NAME}" \
+            --comment "Deploy marketing ${GITHUB_SHA}" \
+            --parameters "commands=[
+              \"set -eux\",
+              \"cd /home/ubuntu\",
+              \"aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}\",
+              \"echo ===== CURRENT IMAGE =====\",
+              \"grep -A5 '^  marketing:' docker-compose.yml || true\",
+              \"echo ===== UPDATING IMAGE =====\",
+              \"sed -i '/^[[:space:]]*marketing:/,/^[[:space:]]*container_name:/ s|^[[:space:]]*image:.*|    image: ${IMAGE_URI}|' docker-compose.yml\",
+              \"echo ===== UPDATED IMAGE =====\",
+              \"grep -A5 '^  marketing:' docker-compose.yml\",
+              \"echo ===== PULLING IMAGE =====\",
+              \"docker compose pull marketing\",
+              \"echo ===== STARTING SERVICE =====\",
+              \"docker compose up -d marketing\",
+              \"echo ===== SERVICE STATUS =====\",
+              \"docker compose ps marketing\"
+            ]" \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "COMMAND_ID=${COMMAND_ID}" >> "$GITHUB_ENV"
+
+          echo "SSM Command ID: ${COMMAND_ID}"
+
+      # ---------------- Wait for SSM Completion ----------------
+      - name: Wait for Deployment Result
+        env:
+          COMMAND_ID: ${{ env.COMMAND_ID }}
+        run: |
+          set -eux
+
+          MAX_ATTEMPTS=30
+          ATTEMPT=0
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+
+            STATUS=$(aws ssm list-command-invocations \
+              --command-id "${COMMAND_ID}" \
+              --details \
+              --query "CommandInvocations[0].Status" \
+              --output text)
+
+            echo "Attempt ${ATTEMPT}/${MAX_ATTEMPTS}"
+            echo "Current SSM Status: ${STATUS}"
+
+            if [ "${STATUS}" = "Success" ]; then
+              echo "=========================================="
+              echo "Deployment completed successfully"
+              echo "=========================================="
+
+              aws ssm list-command-invocations \
+                --command-id "${COMMAND_ID}" \
+                --details
+
+              exit 0
+            fi
+
+            if [ "${STATUS}" = "Failed" ] || \
+               [ "${STATUS}" = "Cancelled" ] || \
+               [ "${STATUS}" = "TimedOut" ] || \
+               [ "${STATUS}" = "Cancelling" ]; then
+
+              echo "=========================================="
+              echo "Deployment failed"
+              echo "=========================================="
+
+              aws ssm list-command-invocations \
+                --command-id "${COMMAND_ID}" \
+                --details
+
+              exit 1
+            fi
+
+            sleep 15
+          done
+
+          echo "Max attempts reached."
+          exit 1
