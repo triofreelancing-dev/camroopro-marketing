@@ -44,54 +44,8 @@ function razorpayCallbackDevRoute(): Plugin {
   };
 }
 
-/**
- * Serves the SPA shell for deep links during `vite dev`.
- *
- * `/` now belongs to the client's static landing page (public/index.html), so
- * the app shell moved to app.html — which means Vite's own HTML fallback would
- * hand a React route like /pay the landing page instead, and React would never
- * mount. Registered directly in configureServer (not in a returned post-hook)
- * so it runs BEFORE that fallback.
- *
- * Only rewrites HTML navigations; anything with a file extension, /api/, and
- * Vite's own /@ and /src/ paths are left alone.
- */
-function spaFallbackToAppShell(): Plugin {
-  return {
-    name: 'spa-fallback-app-shell',
-    apply: 'serve',
-    configureServer(server) {
-      server.middlewares.use((req, _res, next) => {
-        const path = (req.url ?? '/').split('?')[0];
-        const isNavigation =
-          req.method === 'GET' && (req.headers.accept ?? '').includes('text/html');
-        const isAppRoute =
-          path !== '/' &&
-          !path.startsWith('/api/') &&
-          !path.startsWith('/site-assets/') &&
-          !path.startsWith('/@') &&
-          !path.startsWith('/src/') &&
-          !path.startsWith('/node_modules/') &&
-          !/\.[a-z0-9]+$/i.test(path);
-
-        if (isNavigation && isAppRoute) req.url = '/app.html';
-        next();
-      });
-    },
-  };
-}
-
 export default defineConfig({
-  plugins: [react(), tailwindcss(), razorpayCallbackDevRoute(), spaFallbackToAppShell()],
-  /**
-   * The SPA entry is app.html, not index.html: `/` is the client-supplied
-   * static marketing page, which ships verbatim from public/ and is never built.
-   */
-  build: {
-    rollupOptions: {
-      input: 'app.html',
-    },
-  },
+  plugins: [react(), tailwindcss(), razorpayCallbackDevRoute()],
   server: {
     host: true,
     /**
