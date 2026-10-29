@@ -1,4 +1,15 @@
-@import "tailwindcss";
+/*
+ * Tailwind WITHOUT preflight.
+ *
+ * The client's design system (styles/camroo.css) brings its own reset —
+ * `*{box-sizing:border-box}`, `body{margin:0}` — and sizes everything else
+ * against browser defaults. Preflight replaces those defaults, which pushed
+ * every section a few pixels out of line with the handoff. Dropping it is what
+ * makes the React build match the supplied HTML.
+ */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
 
 /*
  * Dark mode keys off `data-theme` on <html>, not `prefers-color-scheme`.
