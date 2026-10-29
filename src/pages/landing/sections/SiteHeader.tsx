@@ -9,7 +9,12 @@ const NAV: [string, string][] = [
   ['#contact', 'Contact'],
 ];
 
-export default function SiteHeader() {
+interface Props {
+  /** "/" on pages that are not the landing page, so anchors navigate home first. */
+  hrefBase?: string;
+}
+
+export default function SiteHeader({ hrefBase = '' }: Props) {
   const [open, setOpen] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
 
@@ -41,7 +46,7 @@ export default function SiteHeader() {
   return (
     <header className={open ? 'header open' : 'header'} id="header" ref={headerRef}>
       <div className="container navwrap">
-        <a className="brand-link" href="#top" aria-label="CAMROO home">
+        <a className="brand-link" href={hrefBase || '#top'} aria-label="CAMROO home">
           <img
             className="brand-logo"
             src="/site-assets/logo-horizontal.png"
@@ -56,12 +61,12 @@ export default function SiteHeader() {
           aria-label="Primary navigation"
         >
           {NAV.map(([href, label]) => (
-            <a key={href} href={href} onClick={() => setOpen(false)}>
+            <a key={href} href={hrefBase + href} onClick={() => setOpen(false)}>
               {label}
             </a>
           ))}
         </nav>
-        <a className="btn btn-primary nav-cta" href="#contact">
+        <a className="btn btn-primary nav-cta" href={hrefBase + '#contact'}>
           Get in touch <span aria-hidden="true">↗</span>
         </a>
         <button

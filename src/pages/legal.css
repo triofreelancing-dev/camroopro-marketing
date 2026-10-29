@@ -1,0 +1,102 @@
+/*
+ * Legal document styling, built on the client's V5.1 tokens.
+ *
+ * Only presentation. The text comes from legal/privacy.ts, legal/terms.ts and
+ * legal/delete-account.ts and must not be edited here or there without the
+ * app changing too: /privacy is the URL given to Play and App Store Connect,
+ * and it has to keep matching both the Data safety declaration and the wording
+ * users accept at sign-up.
+ *
+ * Measure is deliberately narrower than the marketing container — long legal
+ * prose at 1190px is unreadable, so the page keeps the site's palette and type
+ * but its own line length.
+ */
+
+.legal-page {
+  background: var(--bg);
+  color: var(--white);
+  /* Clears the fixed site header. */
+  padding-top: 130px;
+}
+
+.legal-head {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 46px;
+  margin-bottom: 54px;
+}
+
+.legal-measure {
+  width: min(calc(100% - 64px), 780px);
+  margin: auto;
+}
+
+.legal-title {
+  font-size: clamp(30px, 4vw, 48px);
+  font-weight: 760;
+  line-height: 1.14;
+  margin: 18px 0 0;
+}
+
+.legal-head .eyebrow::before {
+  content: '';
+  width: 26px;
+  height: 1px;
+  background: var(--gold);
+  display: block;
+}
+
+.legal-body {
+  padding-bottom: 120px;
+}
+
+.legal-body h2 {
+  font-size: 19px;
+  font-weight: 740;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  margin: 54px 0 16px;
+  color: var(--white);
+}
+
+.legal-body h2:first-child {
+  margin-top: 0;
+}
+
+.legal-body p {
+  font-size: 15px;
+  line-height: 1.9;
+  color: #9faec3;
+  margin: 0 0 18px;
+  /* Several blocks are multi-paragraph strings split on blank lines. */
+  white-space: pre-line;
+}
+
+.legal-body a {
+  color: var(--gold);
+}
+
+.legal-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 760px) {
+  .legal-page {
+    padding-top: 104px;
+  }
+
+  .legal-head {
+    padding-bottom: 32px;
+    margin-bottom: 38px;
+  }
+
+  .legal-body h2 {
+    margin-top: 40px;
+  }
+}
