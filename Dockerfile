@@ -25,4 +25,4 @@ RUN npm install -g serve
 EXPOSE 3000
 
 # Serve the production build
-CMD ["serve", "-s", "build", "-l", "5173"]
+CMD ["serve", "-s", "dist", "-l", "5173"]
